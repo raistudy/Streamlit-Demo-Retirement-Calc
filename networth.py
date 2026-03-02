@@ -25,6 +25,7 @@ This script handles missing dependencies gracefully and will show install instru
 from __future__ import annotations
 
 import datetime as _dt
+from core_networth import build_payload as _core_build_payload, safe_float as _core_safe_float, sum_items as _core_sum_items, is_good_debt, compute_status
 from io import BytesIO
 from typing import Any, Dict, List, Tuple
 
@@ -355,54 +356,19 @@ def _make_payload(cur: str) -> Dict[str, Any]:
     debts_items: List[Dict[str, Any]] = st.session_state["nw_debts_items"]
     income_items: List[Dict[str, Any]] = st.session_state["nw_income_items"]
     expense_items: List[Dict[str, Any]] = st.session_state["nw_expense_items"]
-
-    assets_total = _sum(assets_items, "value")
-    debts_total = _sum(debts_items, "balance")
-    net_worth = assets_total - debts_total
-
-    income_total = _sum(income_items, "value")
-    expense_total = _sum(expense_items, "value")
-    cashflow = income_total - expense_total
-
-    essential_total = _sum([e for e in expense_items if e.get("essential")], "value")
-    emergency_fund = _safe_float(st.session_state["nw_emergency_fund"], 0.0)
-    runway_months = (emergency_fund / essential_total) if essential_total > 0 else 0.0
-
-    bad_debt_total = sum(
-        _safe_float(d.get("balance", 0.0), 0.0) for d in debts_items if not is_good_debt(d)
-    )
-
-    status, status_msg = compute_status(
-        assets_total=assets_total,
-        debts_total=debts_total,
-        bad_debt_total=bad_debt_total,
-        cashflow=cashflow,
+    emergency_fund = st.session_state.get("nw_emergency_fund", 0.0)
+    note = st.session_state.get("nw_note", "")
+    month = st.session_state.get("nw_cf_month", "")
+    return _core_build_payload(
+        month=month,
+        currency=cur,
+        assets_items=assets_items,
+        debts_items=debts_items,
+        income_items=income_items,
+        expense_items=expense_items,
         emergency_fund=emergency_fund,
-        essential_monthly=essential_total,
+        note=note,
     )
-
-    return {
-        "date": _today_iso(),
-        "month": st.session_state["nw_cf_month"],
-        "currency": cur,
-        "assets_items": assets_items,
-        "debts_items": debts_items,
-        "income_items": income_items,
-        "expense_items": expense_items,
-        "emergency_fund": float(emergency_fund),
-        "assets_total": float(assets_total),
-        "debts_total": float(debts_total),
-        "net_worth": float(net_worth),
-        "income_total": float(income_total),
-        "expense_total": float(expense_total),
-        "cashflow": float(cashflow),
-        "essential_expense_total": float(essential_total),
-        "runway_months": float(runway_months),
-        "bad_debt_total": float(bad_debt_total),
-        "status": status,
-        "status_msg": status_msg,
-        "note": st.session_state.get("nw_note", ""),
-    }
 
 
 # -------- Excel --------

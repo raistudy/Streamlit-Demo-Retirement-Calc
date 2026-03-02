@@ -1,0 +1,97 @@
+/* styles.css
+   Single source of truth for your Streamlit look.
+   Keep selectors stable: prefer .stApp, .block-container, and your own .ui-* classes.
+*/
+
+:root{
+  --bg: #fbf7ee;
+  --card: #ffffff;
+  --ink: #1d1d1f;
+  --muted: rgba(0,0,0,0.62);
+  --border: rgba(0,0,0,0.10);
+  --shadow: 0 10px 30px rgba(0,0,0,0.06);
+  --radius: 18px;
+}
+
+/* App background + layout */
+.stApp { background: var(--bg); color: var(--ink); }
+.block-container{
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+  max-width: 1100px;
+}
+
+/* Typography */
+h1,h2,h3{ letter-spacing: -0.02em; }
+p,li{ color: var(--muted); }
+
+/* Buttons */
+.stButton > button{
+  border-radius: 14px;
+  padding: 0.55rem 0.95rem;
+  border: 1px solid var(--border);
+}
+
+/* Inputs: make them feel consistent */
+div[data-baseweb="input"] > div,
+div[data-baseweb="select"] > div,
+div[data-baseweb="textarea"] > div{
+  border-radius: 14px;
+  border-color: var(--border);
+}
+
+/* Metrics */
+div[data-testid="stMetric"]{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+
+/* --- Custom reusable components --- */
+.ui-card{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+  margin: 10px 0 14px 0;
+}
+
+.ui-card-title{
+  font-weight: 750;
+  font-size: 1.05rem;
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+
+.ui-card-body{
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.ui-pill{
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.75);
+  color: var(--ink);
+  font-size: 0.85rem;
+}
+
+.ui-section{
+  margin: 10px 0 6px 0;
+}
+
+.ui-section-title{
+  font-size: 1.15rem;
+  font-weight: 750;
+  color: var(--ink);
+}
+
+.ui-section-sub{
+  margin-top: 2px;
+  color: var(--muted);
+}

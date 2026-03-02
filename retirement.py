@@ -3,12 +3,9 @@ import streamlit as st
 import matplotlib.pyplot as plt
 from storage import signup_save, login_save
 
-# ========= Config =========
-RATE_MAP = {
-    "High (stocks 10%)": 0.10,
-    "Medium (bonds 6%)": 0.06,
-    "Low (savings 3%)": 0.03,
-}
+from core import RATE_MAP, RetirementInputs, retirement_snapshot, monthly_rate_from_annual, future_value_lump, future_value_annuity, swr_drawdown, classify_drawdown, lifestyle_for_tier
+
+DEFAULT_INFLATION = 0.0225  # 2% annual inflation for inflation-adjusted value
 
 CURRENCY_SYMBOL = {"EUR": "€", "IDR": "Rp", "CNY": "¥"}
 
@@ -133,129 +130,6 @@ def init_ret_state():
 
 
 # ========= Math helpers =========
-def monthly_rate_from_annual(r_annual: float) -> float:
-    return (1 + r_annual) ** (1 / 12) - 1
-
-
-def future_value_lump(pv: float, r_m: float, n_months: int) -> float:
-    return pv * ((1 + r_m) ** n_months)
-
-
-def future_value_annuity(pmt: float, r_m: float, n_months: int) -> float:
-    if abs(r_m) < 1e-12:
-        return pmt * n_months
-    return pmt * (((1 + r_m) ** n_months - 1) / r_m)
-
-
-def swr_drawdown(fv: float, swr: float = 0.04):
-    annual = fv * swr
-    monthly = annual / 12.0
-    return annual, monthly
-
-
-# ========= Tiers =========
-TIERS_EUR = [
-    (0, 500, "Hustler", "Extra hobby money; keep your main income."),
-    (500, 1200, "Bill Buffer", "Covers some recurring bills; job still needed for rent/saving."),
-    (1200, 1800, "Lean-FI", "Frugal living in low-mid cost EU or house-share in pricier cities."),
-    (1800, 2500, "Base-FI", "Modest one-bed in mid-cost cities; normal groceries and transit."),
-    (2500, 3500, "Comfort-FI", "Comfortable EU city life; more dining, travel, and buffer."),
-    (3500, 5000, "Family-FI", "Support a small family or nicer housing; stable savings and travel."),
-    (5000, 7000, "Upscale-FI", "Premium housing, frequent travel, high flexibility."),
-    (7000, 10000, "Freedom-Plus", "High freedom: premium lifestyle and strong buffer."),
-    (10000, 10**12, "The Millionaire", "Very high financial freedom; you can fund ambitious dreams."),
-]
-
-TIERS_IDR = [
-    (0, 2_000_000, "Hustler", "Small passive stream; daily life still depends on salary."),
-    (2_000_000, 6_000_000, "Bill Buffer", "Covers some bills and small treats; rent still needs work."),
-    (6_000_000, 12_000_000, "Lean-FI", "Frugal living; modest housing, simple food, limited travel."),
-    (12_000_000, 20_000_000, "Base-FI", "Modest comfort in major cities; stable baseline."),
-    (20_000_000, 35_000_000, "Comfort-FI", "Comfortable lifestyle; more dining, travel, and buffer."),
-    (35_000_000, 55_000_000, "Family-FI", "Support a family, nicer housing; stable savings."),
-    (55_000_000, 85_000_000, "Upscale-FI", "Premium lifestyle; frequent travel; strong buffer."),
-    (85_000_000, 130_000_000, "Freedom-Plus", "High freedom; premium choices and strong buffer."),
-    (130_000_000, 10**15, "The Millionaire", "Very high freedom; fund big ambitions and legacy."),
-]
-
-TIERS_CNY = [
-    (0, 3000, "Hustler", "Small passive stream; salary still does the heavy lifting."),
-    (3000, 8000, "Bill Buffer", "Covers recurring bills; rent and goals still need work."),
-    (8000, 14000, "Lean-FI", "Frugal city living; basic rent, simple food, limited travel."),
-    (14000, 22000, "Base-FI", "Modest comfort in cheaper areas; stable baseline."),
-    (22000, 35000, "Comfort-FI", "Comfortable city lifestyle; more dining, travel, and buffer."),
-    (35000, 55000, "Family-FI", "Support family and better housing; stable savings."),
-    (55000, 85000, "Upscale-FI", "Premium housing and lifestyle; frequent travel."),
-    (85000, 130000, "Freedom-Plus", "High freedom; premium choices and strong buffer."),
-    (130000, 10**12, "The Millionaire", "Very high freedom; fund big ambitions and legacy."),
-]
-
-TIER_TABLES = {"EUR": TIERS_EUR, "IDR": TIERS_IDR, "CNY": TIERS_CNY}
-
-
-def classify_drawdown(monthly_amount: float, currency: str):
-    tiers = TIER_TABLES.get(currency, TIERS_EUR)
-    for lo, hi, name, desc in tiers:
-        if lo <= monthly_amount < hi:
-            return name, desc, lo, hi
-    return "Unclassified", "Out of expected range.", 0.0, 1.0
-
-
-# ========= Lifestyle deep-dive =========
-TIER_LIFESTYLE = {
-    "Hustler": """
-**As a Hustler**, you’ve got a small stream of passive income, enough to treat yourself every month while your day job still pays the bills.
-- **Day-to-day:** Say yes to the things you love: a Michelin set lunch, a concert ticket, or collecting **Labubu**.
-- **Housing:** Keep it efficient, shared living, compact studio, or low fixed-cost area.
-- **Mindset:** Proof it works phase. System is alive, now scale it.
-""",
-    "Bill Buffer": """
-**As a Bill Buffer**, your portfolio covers a meaningful chunk of recurring expenses.
-- **Day-to-day:** Utilities, phone, subscriptions, small bills feel lighter.
-- **Mindset:** Use the breathing room to increase contributions and avoid lifestyle creep.
-""",
-    "Lean-FI": """
-**As Lean-FI**, you can survive on your portfolio with a frugal lifestyle.
-- **Day-to-day:** Value-focused living, cooking more, simple pleasures.
-- **Mindset:** Real freedom, still discipline-heavy.
-""",
-    "Base-FI": """
-**As Base-FI**, you can live modestly without stressing about every euro.
-- **Day-to-day:** Normal groceries, decent gym, occasional dining out.
-- **Mindset:** Tradeoffs remain, but anxiety drops.
-""",
-    "Comfort-FI": """
-**As Comfort-FI**, you can enjoy life with flexibility.
-- **Day-to-day:** Better hobbies, less compromise on quality.
-- **Mindset:** “Normal-good” life without a job.
-""",
-    "Family-FI": """
-**As Family-FI**, you can support a household and a fuller lifestyle.
-- **Day-to-day:** Childcare, insurance, bigger groceries are manageable.
-- **Mindset:** Protect stability, avoid large shocks.
-""",
-    "Upscale-FI": """
-**As Upscale-FI**, you can choose premium comfort and experiences.
-- **Day-to-day:** Higher quality services, frequent travel, premium choices.
-- **Mindset:** Legacy and impact start to matter more.
-""",
-    "Freedom-Plus": """
-**As Freedom-Plus**, your lifestyle options are wide open.
-- **Day-to-day:** You can say yes to almost anything with minimal guilt.
-- **Mindset:** Time becomes the main asset.
-""",
-    "The Millionaire": """
-**As The Millionaire**, you have serious financial power.
-- **Day-to-day:** Passive income can exceed many full salaries.
-- **Mindset:** The question becomes “what kind of life do I want to build?”
-""",
-    "Unclassified": """
-We couldn't place your monthly draw into a tier. Adjust contributions, horizon, or return profile.
-""",
-}
-
-
-# ========= Charts =========
 def donut_progress(
     pct: float,
     center_text: str,
@@ -529,7 +403,11 @@ def render_retirement(on_back):
             growth = total_fv - total_contrib
 
             annual_dd, monthly_dd = swr_drawdown(total_fv, 0.04)
-            tier_name, tier_desc, tier_lo, tier_hi = classify_drawdown(monthly_dd, cur)
+            inflation_factor = (1.0 + DEFAULT_INFLATION) ** float(years)
+            pot_real = total_fv / inflation_factor if inflation_factor > 0 else total_fv
+            annual_dd_real = annual_dd / inflation_factor if inflation_factor > 0 else annual_dd
+            monthly_dd_real = monthly_dd / inflation_factor if inflation_factor > 0 else monthly_dd
+            tier_name, tier_desc, tier_lo, tier_hi = classify_drawdown(monthly_dd_real, cur)
 
             return {
                 "years": years,
@@ -538,6 +416,10 @@ def render_retirement(on_back):
                 "growth": growth,
                 "annual_dd": annual_dd,
                 "monthly_dd": monthly_dd,
+                "pot_real": pot_real,
+                "annual_dd_real": annual_dd_real,
+                "monthly_dd_real": monthly_dd_real,
+                "inflation": DEFAULT_INFLATION,
                 "tier_name": tier_name,
                 "tier_desc": tier_desc,
                 "tier_lo": tier_lo,
@@ -555,6 +437,7 @@ def render_retirement(on_back):
             <b>Growth / interest:</b> {fmt_money(target_res['growth'], cur)}<br><br>
             <b>4% rule draw:</b> {fmt_money(target_res['annual_dd'], cur)}/yr
             (≈ {fmt_money(target_res['monthly_dd'], cur)}/mo)<br>
+             <span style="opacity:0.85;">Inflation-adjusted value (2%): {fmt_money(target_res.get('annual_dd_real', target_res['annual_dd']), cur)}/yr (≈ {fmt_money(target_res.get('monthly_dd_real', target_res['monthly_dd']), cur)}/mo)</span><br>
             <b>Tier:</b> {target_res['tier_name']}<br>
             <span style="opacity:0.9;">{target_res['tier_desc']}</span>
             """,
@@ -572,6 +455,7 @@ def render_retirement(on_back):
                 Contributions: {fmt_money(r['contrib'], cur)}<br>
                 Growth: {fmt_money(r['growth'], cur)}<br>
                 4% rule: <b>{fmt_money(r['monthly_dd'], cur)}/mo</b><br>
+                 <span style="opacity:0.85;">Inflation-adjusted value (2%): <b>{fmt_money(r.get('monthly_dd_real', r['monthly_dd']), cur)}/mo</b></span><br>
                 Tier: <b>{r['tier_name']}</b>, {r['tier_desc']}
                 """,
             )
@@ -638,8 +522,12 @@ def render_retirement(on_back):
         contrib_total = pv + pmt * n
         growth = pot - contrib_total
         annual_dd, monthly_dd = swr_drawdown(pot, 0.04)
-        tier_name, tier_desc, tier_lo, tier_hi = classify_drawdown(monthly_dd, cur)
 
+        inflation_factor = (1.0 + DEFAULT_INFLATION) ** float(T)
+        monthly_dd_real = monthly_dd / inflation_factor if inflation_factor > 0 else monthly_dd
+        annual_dd_real = annual_dd / inflation_factor if inflation_factor > 0 else annual_dd
+
+        tier_name, tier_desc, tier_lo, tier_hi = classify_drawdown(monthly_dd_real, cur)
         _card(
             "Snapshot",
             f"""
@@ -688,7 +576,7 @@ def render_retirement(on_back):
 
         # Lifestyle deep-dive
         st.subheader("Lifestyle deep-dive")
-        st.markdown(TIER_LIFESTYLE.get(tier_name, TIER_LIFESTYLE["Unclassified"]))
+        st.markdown(lifestyle_for_tier(tier_name) or lifestyle_for_tier("Unclassified"))
 
         with st.expander("Compare all tiers (see what each lifestyle feels like)"):
             for key in [
@@ -703,7 +591,7 @@ def render_retirement(on_back):
                 "The Millionaire",
             ]:
                 st.markdown(f"### {key}")
-                st.markdown(TIER_LIFESTYLE[key])
+                st.markdown(lifestyle_for_tier(key))
 
         st.markdown("---")
         c1, c2, c3 = st.columns(3)

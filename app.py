@@ -1,9 +1,11 @@
 import streamlit as st
+from ui_style import load_css
 from networth import render_networth
 from retirement import render_retirement
 
 st.set_page_config(page_title="Finance Toolkit", page_icon="🧮", layout="centered")
 
+load_css()
 def init_state():
     if "route" not in st.session_state:
         st.session_state.route = "home"
