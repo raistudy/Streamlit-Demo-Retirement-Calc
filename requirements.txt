@@ -1,4 +1,5 @@
 streamlit
 numpy
-math
 matplotlib
+openpyxl
+reportlab
